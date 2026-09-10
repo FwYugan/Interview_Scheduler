@@ -1,0 +1,32 @@
+# Python bytecode and test artifacts
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Python virtual environments
+.venv/
+venv/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Local SQLite databases and backups
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+
+# Runtime data and logs
+instance/
+logs/
+*.log
+
+# Operating system files
+.DS_Store
+Thumbs.db
