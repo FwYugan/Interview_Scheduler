@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}身份核验｜面试时间调整系统{% endblock %}
+{% block content %}
+<section class="card narrow">
+  <h1>申请调整面试时间</h1>
+  <p>请输入登记时的姓名、学号和电话号码后四位。核验通过后可选择目标时间段。</p>
+  <form method="post" class="form-grid">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>姓名<input name="name" required maxlength="50" autocomplete="name"></label>
+    <label>学号<input name="student_id" required maxlength="50"></label>
+    <label>电话号码后四位<input name="phone_last4" inputmode="numeric" pattern="[0-9]{4}" required></label>
+    <button class="button" type="submit">核验身份</button>
+  </form>
+</section>
+{% endblock %}

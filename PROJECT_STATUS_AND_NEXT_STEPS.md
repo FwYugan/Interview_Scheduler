@@ -1,6 +1,6 @@
 # 面试时间调整网站：项目现状与后续计划
 
-更新时间：2026-09-10
+更新时间：2026-09-11
 
 ## 一、项目目标
 
@@ -47,19 +47,16 @@
 6. 已通过浏览器访问公网 IP，确认看到 Caddy 默认页。
 7. 已在本机确认 Python 和 pip 可用。
 8. 已初始化本地 Git 仓库，并创建适用于 Python、SQLite、虚拟环境和密钥文件的 `.gitignore`。
-9. GitHub 远程仓库尚未创建和关联。
+9. GitHub 远程仓库已关联：`https://github.com/FwYugan/Interview_Scheduler.git`，默认分支为 `main`。
+10. 已完成最小可用版本：Flask 应用、SQLite 数据库、管理员登录、人员手动录入、时间段管理、初始排期、学生调整申请和管理员审核。
+11. 已加入 CSV 批量导入模块，支持中文和英文表头、UTF-8/Excel 常见中文编码、逐行校验和按学号更新。
 
 ## 四、当前尚未完成的部分
 
 看到 Caddy 默认页面只说明 Web 服务器正常，不代表业务网站已经部署。以下内容仍需开发：
 
-- Python Web 应用及页面。
-- SQLite 数据库表和初始化数据。
-- 学生端查看安排、身份核验和提交调整请求。
-- 管理员登录、人员管理、时间段管理和请求处理。
-- 管理员私有备注权限控制。
-- 并发情况下的名额校验。
-- Git 仓库和 GitHub 远程仓库。
+- 真实业务数据的导入和管理员账号初始化。
+- 本机端到端测试和界面验收。
 - Caddy 反向代理到 Python 应用。
 - Python 应用的 systemd 服务。
 - 生产环境备份、日志和安全配置。
@@ -70,12 +67,12 @@
 
 建议使用 Flask。项目规模适中，便于学习、部署和维护；SQLite 使用 Python 内置 `sqlite3` 模块即可。生产环境使用 Gunicorn 运行 Flask，Caddy 负责接收公网 HTTP/HTTPS 请求并反向代理到 Gunicorn。
 
-建议依赖：
+当前依赖：
 
 - Flask
 - Gunicorn
 - python-dotenv
-- pytest（开发测试）
+- pytest
 
 ### 数据表初稿
 
@@ -106,37 +103,28 @@ py -m venv .venv
 
 ### 第 2 步：初始化 Git 项目
 
-本地 Git 仓库和 `.gitignore` 已创建。下一项是创建 GitHub 空仓库，并把其 HTTPS 地址配置为 `origin`。不要把管理员密码、密钥或真实电话号码提交到 GitHub。
+本地 Git 仓库、`.gitignore` 和 GitHub 远程仓库均已创建。远程地址为 `https://github.com/FwYugan/Interview_Scheduler.git`，默认分支为 `main`。不要把管理员密码、密钥或真实电话号码提交到 GitHub。
 
-在 GitHub 网页点击右上角 `+`，选择 `New repository`，仓库名可使用 `interview-scheduler`。创建时不要勾选 README、`.gitignore` 或 License，因为本地已经有项目文件。创建完成后，复制仓库的 HTTPS 地址，格式类似 `https://github.com/你的用户名/interview-scheduler.git`。
-
-然后在 VS Code 集成终端、项目根目录 `C:\\Users\\tjhdy\\Desktop\\Project_1` 中执行。将尖括号内内容替换为实际仓库地址：
-
-```powershell
-git add .
-git commit -m "chore: initialize project"
-git branch -M main
-git remote add origin <GitHub仓库HTTPS地址>
-git push -u origin main
-```
-
-首次执行 `git push` 时，GitHub 可能打开浏览器要求登录和授权；按 GitHub 的正常登录流程完成即可。若 `git commit` 提示缺少用户名和邮箱，先执行以下命令，再重新提交：
-
-```powershell
-git config --global user.name "你的GitHub显示名称"
-git config --global user.email "你的GitHub邮箱"
-```
-
-完成推送后，用以下命令确认：
-
-```powershell
-git status
-git remote -v
-```
+后续每次完成一组功能后，在 VS Code 终端执行 `git add .`、`git commit -m "说明本次改动"` 和 `git push`。推送前务必确认 `.env`、`instance/` 和真实人员 CSV 未被纳入提交。
 
 ### 第 3 步：先完成最小可用版本
 
-先实现数据库初始化、时间表展示、管理员登录、人员录入和调整请求处理。管理员备注和权限控制必须在第一版就设计好，不能先做成公开字段再补救。
+此步骤已完成。当前第一版采用以下业务规则：
+
+1. 管理员在创建每个时间段时单独填写最大人数，因此不同时间段可以有不同容量。
+2. 学生提交调整申请后，管理员审核通过才会变更面试安排；审核时系统会在 SQLite 事务中再次检查目标时间段是否仍有名额。
+3. 学生身份核验使用姓名、学号和电话号码后四位；公开页面只展示姓名、时间和名额，不显示电话、学号或管理员备注。
+4. CSV 导入需要“姓名、学号、电话号码”列，或 `name,student_id,phone` 英文列。相同学号会更新姓名和电话，同时保留管理员备注、排期和历史申请。
+
+本机启动方式：
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\flask.exe --app app init-db
+.\.venv\Scripts\python.exe app.py
+```
+
+运行前先复制 `.env.example` 为 `.env`，并在 `.env` 中设置一段随机的 `SECRET_KEY`。然后访问 `http://127.0.0.1:5000`。管理员入口为 `/admin/login`。首次 `init-db` 会在终端中安全地要求输入管理员用户名和密码。
 
 ### 第 4 步：本机测试
 

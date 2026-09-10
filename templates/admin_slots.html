@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}时间段管理｜面试时间调整系统{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('admin_dashboard') }}">← 管理后台</a></p>
+<h1>时间段管理</h1>
+<section class="card"><form method="post" class="form-grid horizontal">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label>日期<input type="date" name="interview_date" required></label>
+  <label>开始<input type="time" name="start_time" required></label>
+  <label>结束<input type="time" name="end_time" required></label>
+  <label>最大人数<input type="number" name="capacity" min="1" max="1000" value="1" required></label>
+  <button class="button" type="submit">创建时间段</button>
+</form></section>
+<div class="table-scroll"><table>
+  <thead><tr><th>时间段</th><th>已安排 / 最大</th><th>状态</th><th>操作</th></tr></thead>
+  <tbody>{% for slot in slots %}<tr>
+    <td>{{ format_slot(slot) }}</td><td>{{ slot.booked }} / {{ slot.capacity }}</td><td>{{ '开放' if slot.active else '关闭' }}</td>
+    <td><form method="post" action="{{ url_for('toggle_slot', slot_id=slot.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">{{ '关闭' if slot.active else '重新开放' }}</button></form></td>
+  </tr>{% else %}<tr><td colspan="4">尚未创建时间段。</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

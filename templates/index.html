@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="hero">
+  <h1>面试时间安排</h1>
+  <p>请查看你的面试时间。如需调整，请先完成身份核验并提交申请，管理员审核后生效。</p>
+  <a class="button" href="{{ url_for('verify_identity') }}">提交调整申请</a>
+</section>
+{% if slots %}
+<div class="table-scroll"><table>
+  <thead><tr><th>日期</th><th>时间</th><th>已安排人员</th><th>名额</th><th>状态</th></tr></thead>
+  <tbody>
+  {% for slot in slots %}
+    <tr>
+      <td>{{ slot.interview_date }}</td>
+      <td>{{ slot.start_time }}–{{ slot.end_time }}</td>
+      <td>{{ slot.interviewee_names or '暂无' }}</td>
+      <td>{{ slot.booked }} / {{ slot.capacity }}</td>
+      <td>{% if slot.booked < slot.capacity %}<span class="tag available">有空位</span>{% else %}<span class="tag full">已满</span>{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% else %}
+<p class="empty">尚未发布面试时间段。</p>
+{% endif %}
+{% endblock %}

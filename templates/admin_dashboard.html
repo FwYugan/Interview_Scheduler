@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}管理后台｜面试时间调整系统{% endblock %}
+{% block content %}
+<h1>管理后台</h1>
+<div class="stats">
+  <div class="stat"><span>{{ counts.interviewees }}</span>名面试人员</div>
+  <div class="stat"><span>{{ counts.slots }}</span>个开放时间段</div>
+  <div class="stat"><span>{{ counts.pending }}</span>条待审核申请</div>
+</div>
+<div class="admin-links">
+  <a class="card-link" href="{{ url_for('admin_interviewees') }}">人员管理与私有备注</a>
+  <a class="card-link" href="{{ url_for('import_csv') }}">CSV 批量导入</a>
+  <a class="card-link" href="{{ url_for('admin_slots') }}">时间段管理</a>
+  <a class="card-link" href="{{ url_for('admin_appointments') }}">初始面试排期</a>
+  <a class="card-link" href="{{ url_for('admin_change_requests') }}">审核调整申请</a>
+</div>
+{% endblock %}

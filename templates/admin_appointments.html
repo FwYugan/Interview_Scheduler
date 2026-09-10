@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}初始面试排期｜面试时间调整系统{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('admin_dashboard') }}">← 管理后台</a></p>
+<h1>初始面试排期</h1>
+<section class="card">
+  {% if people and slots %}<form method="post" class="form-grid horizontal">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>面试人员<select name="interviewee_id" required><option value="">请选择</option>{% for person in people %}<option value="{{ person.id }}">{{ person.name }}（{{ person.student_id }}）</option>{% endfor %}</select></label>
+    <label>时间段<select name="slot_id" required><option value="">请选择</option>{% for slot in slots %}<option value="{{ slot.id }}">{{ format_slot(slot) }}（剩余 {{ slot.capacity - slot.booked }}）</option>{% endfor %}</select></label>
+    <button class="button" type="submit">安排面试</button>
+  </form>{% else %}<p>请先导入人员并创建有空位的时间段。</p>{% endif %}
+</section>
+<div class="table-scroll"><table>
+  <thead><tr><th>姓名</th><th>学号</th><th>面试时间</th></tr></thead>
+  <tbody>{% for appointment in appointments %}<tr><td>{{ appointment.name }}</td><td>{{ appointment.student_id }}</td><td>{{ appointment.interview_date }} {{ appointment.start_time }}–{{ appointment.end_time }}</td></tr>{% else %}<tr><td colspan="3">尚无安排。</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

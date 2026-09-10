@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}选择新时间｜面试时间调整系统{% endblock %}
+{% block content %}
+<section class="card narrow">
+  <h1>选择希望调整到的时间</h1>
+  <p><strong>{{ person.name }}</strong>，你当前安排为：{{ format_slot(appointment) }}。</p>
+  {% if choices %}
+  <form method="post" class="form-grid">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>目标时间段
+      <select name="requested_slot_id" required>
+        <option value="">请选择</option>
+        {% for slot in choices %}<option value="{{ slot.id }}">{{ format_slot(slot) }}（剩余 {{ slot.capacity - slot.booked }} 个名额）</option>{% endfor %}
+      </select>
+    </label>
+    <button class="button" type="submit">提交申请</button>
+  </form>
+  {% else %}
+  <p class="empty">目前没有可选的空余时间段，请稍后再试或联系管理员。</p>
+  {% endif %}
+</section>
+{% endblock %}

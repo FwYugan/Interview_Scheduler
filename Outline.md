@@ -17,8 +17,3 @@
 1. 列出我现在服务器与本机都还需要安装哪些软件
 2. 为服务器安装需要安装的软件（服务器远程访问的终端我已打开
    
-git add .
-git commit -m "chore: initialize project"
-git branch -M main
-git remote add origin https://github.com/FwYugan/Interview_Scheduler
-git push -u origin main

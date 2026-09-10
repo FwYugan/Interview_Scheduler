@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}人员管理｜面试时间调整系统{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('admin_dashboard') }}">← 管理后台</a></p>
+<h1>面试人员管理</h1>
+<div class="two-columns">
+  <section class="card">
+    <h2>手动添加</h2>
+    <form method="post" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>姓名<input name="name" required maxlength="50"></label>
+      <label>学号<input name="student_id" required maxlength="50"></label>
+      <label>电话号码<input name="phone" required inputmode="tel" maxlength="30"></label>
+      <button class="button" type="submit">添加人员</button>
+    </form>
+    <p><a href="{{ url_for('import_csv') }}">需要一次导入多人？使用 CSV 批量导入</a></p>
+  </section>
+  <section class="card"><h2>说明</h2><p>管理员备注仅在本页面显示，不会出现在学生端的公开排期或申请页面。</p></section>
+</div>
+<div class="table-scroll"><table>
+  <thead><tr><th>姓名</th><th>学号</th><th>电话</th><th>管理员私有备注</th></tr></thead>
+  <tbody>{% for person in people %}<tr>
+    <td>{{ person.name }}</td><td>{{ person.student_id }}</td><td>{{ person.phone }}</td>
+    <td><form method="post" action="{{ url_for('update_notes', interviewee_id=person.id) }}" class="notes-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <textarea name="admin_notes" rows="2" maxlength="2000">{{ person.admin_notes }}</textarea><button type="submit">保存</button>
+    </form></td>
+  </tr>{% else %}<tr><td colspan="4">尚无人员资料。</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}
