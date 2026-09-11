@@ -20,7 +20,7 @@
 <div class="table-scroll"><table>
   <thead><tr><th>姓名</th><th>学号</th><th>电话</th><th>管理员私有备注</th></tr></thead>
   <tbody>{% for person in people %}<tr>
-    <td>{{ person.name }}</td><td>{{ person.student_id }}</td><td>{{ person.phone }}</td>
+    <td><a href="{{ url_for('admin_interviewee_detail', interviewee_id=person.id) }}">{{ person.name }}</a></td><td>{{ person.student_id }}</td><td>{{ person.phone }}</td>
     <td><form method="post" action="{{ url_for('update_notes', interviewee_id=person.id) }}" class="notes-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <textarea name="admin_notes" rows="2" maxlength="2000">{{ person.admin_notes }}</textarea><button type="submit">保存</button>

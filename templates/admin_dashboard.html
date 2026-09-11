@@ -5,7 +5,7 @@
 <div class="stats">
   <div class="stat"><span>{{ counts.interviewees }}</span>名面试人员</div>
   <div class="stat"><span>{{ counts.slots }}</span>个开放时间段</div>
-  <div class="stat"><span>{{ counts.pending }}</span>条待审核申请</div>
+  <div class="stat"><span>{{ counts.requests }}</span>条调整申请日志</div>
 </div>
 <div class="admin-links">
   <a class="card-link" href="{{ url_for('admin_interviewees') }}"><span class="eyebrow">PEOPLE</span><strong>人员资料</strong><small>录入人员并维护管理员私有备注</small></a>
@@ -13,5 +13,6 @@
   <a class="card-link" href="{{ url_for('admin_slots') }}"><span class="eyebrow">SLOTS</span><strong>时间段管理</strong><small>创建轮次并设置可容纳人数</small></a>
   <a class="card-link" href="{{ url_for('admin_appointments') }}"><span class="eyebrow">ASSIGN</span><strong>初始面试排期</strong><small>为人员分配面试时间</small></a>
   <a class="card-link" href="{{ url_for('admin_change_requests') }}"><span class="eyebrow">REVIEW</span><strong>审核调整申请</strong><small>查看详情并处理时间变更</small></a>
+  {% if session.get('is_owner') %}<a class="card-link" href="{{ url_for('admin_accounts') }}"><span class="eyebrow">OWNER</span><strong>管理员账号</strong><small>仅站长可以添加、改密或删除账号</small></a>{% endif %}
 </div>
 {% endblock %}

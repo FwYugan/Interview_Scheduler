@@ -114,44 +114,6 @@ def test_public_page_does_not_expose_phone_or_admin_notes(app, client):
     assert response.headers["Location"].endswith("/request/change")
 
 
-def test_approval_keeps_current_appointment_when_target_slot_is_full(app, client):
-    connection = sqlite3.connect(app.config["DATABASE"])
-    connection.execute("INSERT INTO interviewees (name, student_id, phone) VALUES ('甲', '1', '13800138000')")
-    connection.execute("INSERT INTO interviewees (name, student_id, phone) VALUES ('乙', '2', '13900139000')")
-    connection.execute(
-        "INSERT INTO slots (interview_date, start_time, end_time, capacity) VALUES ('2026-10-01', '09:00', '09:30', 1)"
-    )
-    connection.execute(
-        "INSERT INTO slots (interview_date, start_time, end_time, capacity) VALUES ('2026-10-01', '10:00', '10:30', 1)"
-    )
-    connection.execute("INSERT INTO appointments (interviewee_id, slot_id) VALUES (1, 1)")
-    connection.execute("INSERT INTO appointments (interviewee_id, slot_id) VALUES (2, 2)")
-    connection.execute(
-        """
-        INSERT INTO change_requests
-        (interviewee_id, old_slot_id, requested_slot_id, submitted_name, submitted_student_id, submitted_phone_last4)
-        VALUES (1, 1, 2, '甲', '1', '8000')
-        """
-    )
-    connection.commit()
-    connection.close()
-
-    login(client)
-    token = csrf_token(client, "/admin/change-requests")
-    response = client.post(
-        "/admin/change-requests/1/decision",
-        data={"csrf_token": token, "action": "approve", "admin_message": ""},
-        follow_redirects=True,
-    )
-    assert "目标时间段已满或已关闭" in response.get_data(as_text=True)
-    connection = sqlite3.connect(app.config["DATABASE"])
-    appointment_slot = connection.execute("SELECT slot_id FROM appointments WHERE interviewee_id = 1").fetchone()[0]
-    status = connection.execute("SELECT status FROM change_requests WHERE id = 1").fetchone()[0]
-    connection.close()
-    assert appointment_slot == 1
-    assert status == "pending"
-
-
 def test_public_name_search_returns_only_scheduled_interview_details(app, client):
     connection = sqlite3.connect(app.config["DATABASE"])
     connection.execute("INSERT INTO interviewees (name, student_id, phone) VALUES ('李同学', '3', '13700137000')")
@@ -167,3 +129,60 @@ def test_public_name_search_returns_only_scheduled_interview_details(app, client
     assert "13:00" in page
     assert "13700137000" not in page
     assert "13600136000" not in page
+
+
+def test_owner_can_add_and_delete_non_owner_admin(app, client):
+    login(client)
+    token = csrf_token(client, "/admin/admins")
+    response = client.post(
+        "/admin/admins",
+        data={"csrf_token": token, "username": "reviewer", "password": "strong-pass"},
+        follow_redirects=True,
+    )
+    assert "管理员账号已添加" in response.get_data(as_text=True)
+    connection = sqlite3.connect(app.config["DATABASE"])
+    reviewer_id = connection.execute("SELECT id FROM admins WHERE username = 'reviewer'").fetchone()[0]
+    connection.close()
+    token = csrf_token(client, "/admin/admins")
+    response = client.post(f"/admin/admins/{reviewer_id}/delete", data={"csrf_token": token}, follow_redirects=True)
+    assert "管理员账号已删除" in response.get_data(as_text=True)
+
+
+def test_student_change_is_applied_and_second_request_is_rate_limited(app, client):
+    connection = sqlite3.connect(app.config["DATABASE"])
+    connection.execute("INSERT INTO interviewees (name, student_id, phone) VALUES ('换时学生', '5', '13500135000')")
+    connection.execute("INSERT INTO slots (interview_date, start_time, end_time, capacity) VALUES ('2026-10-03', '09:00', '09:30', 1)")
+    connection.execute("INSERT INTO slots (interview_date, start_time, end_time, capacity) VALUES ('2026-10-03', '10:00', '10:30', 1)")
+    connection.execute("INSERT INTO appointments (interviewee_id, slot_id) VALUES (1, 1)")
+    connection.commit()
+    connection.close()
+
+    token = csrf_token(client, "/request/verify")
+    response = client.post("/request/verify", data={"csrf_token": token, "name": "换时学生", "student_id": "5", "phone_last4": "5000"})
+    assert response.status_code == 302
+    token = csrf_token(client, "/request/change")
+    response = client.post("/request/change", data={"csrf_token": token, "requested_slot_id": 2}, follow_redirects=True)
+    assert "自动调整成功" in response.get_data(as_text=True)
+
+    connection = sqlite3.connect(app.config["DATABASE"])
+    assert connection.execute("SELECT slot_id FROM appointments WHERE interviewee_id = 1").fetchone()[0] == 2
+    assert connection.execute("SELECT status FROM change_requests WHERE interviewee_id = 1").fetchone()[0] == "approved"
+    connection.close()
+
+    token = csrf_token(client, "/request/verify")
+    client.post("/request/verify", data={"csrf_token": token, "name": "换时学生", "student_id": "5", "phone_last4": "5000"})
+    token = csrf_token(client, "/request/change")
+    response = client.post("/request/change", data={"csrf_token": token, "requested_slot_id": 1}, follow_redirects=True)
+    assert "至少间隔 30 秒" in response.get_data(as_text=True)
+
+
+def test_evaluation_is_attributed_to_logged_in_admin(app, client):
+    connection = sqlite3.connect(app.config["DATABASE"])
+    connection.execute("INSERT INTO interviewees (name, student_id, phone) VALUES ('评价学生', '6', '13400134000')")
+    connection.commit()
+    connection.close()
+    login(client)
+    token = csrf_token(client, "/admin/interviewees/1")
+    response = client.post("/admin/interviewees/1/evaluations", data={"csrf_token": token, "content": "表现良好"}, follow_redirects=True)
+    assert "表现良好" in response.get_data(as_text=True)
+    assert "admin" in response.get_data(as_text=True)

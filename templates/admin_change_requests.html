@@ -7,14 +7,7 @@
 <article class="card request">
   <div><strong>{{ change.submitted_name }}</strong>（{{ change.submitted_student_id }}，电话后四位 {{ change.submitted_phone_last4 }}）</div>
   <p>原时间：{{ change.old_date }} {{ change.old_start }}–{{ change.old_end }}<br>申请时间：{{ change.target_date }} {{ change.target_start }}–{{ change.target_end }}<br>提交于：{{ change.submitted_at }}</p>
-  {% if change.status == 'pending' %}
-  <form method="post" action="{{ url_for('decide_change_request', request_id=change.id) }}" class="decision-form">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <input name="admin_message" placeholder="给管理员记录的处理说明（可选）" maxlength="500">
-    <button class="button" type="submit" name="action" value="approve">通过并调整</button>
-    <button type="submit" name="action" value="reject">拒绝</button>
-  </form>
-  {% else %}<p><span class="tag {{ change.status }}">{{ '已通过' if change.status == 'approved' else '已拒绝' }}</span> {{ change.admin_message }}</p>{% endif %}
+  <p><span class="tag {{ change.status }}">{{ '系统自动通过' if change.status == 'approved' else ('已拒绝' if change.status == 'rejected' else '待处理') }}</span> {{ change.admin_message }}</p>
 </article>
 {% else %}<p class="empty">尚无调整申请。</p>{% endfor %}
 {% endblock %}

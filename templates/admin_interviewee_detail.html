@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% block title %}面试人员详情｜面试时间调整系统{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('admin_interviewees') }}">← 返回人员资料</a></p>
+<div class="admin-heading"><div><span class="eyebrow">INTERVIEWEE PROFILE</span><h1>{{ person.name }}</h1><p>学号：{{ person.student_id }}　电话：{{ person.phone }}</p></div>{% if appointment %}<span class="tag available">{{ format_slot(appointment) }}</span>{% else %}<span class="tag full">尚未排期</span>{% endif %}</div>
+<section class="card"><h2>添加评价</h2><form method="post" action="{{ url_for('add_evaluation', interviewee_id=person.id) }}" class="form-grid"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><textarea name="content" rows="4" maxlength="4000" placeholder="记录面试表现、录取参考等信息" required></textarea><button class="button" type="submit">添加评价</button></form></section>
+<section><h2>评价记录</h2>{% for evaluation in evaluations %}<article class="card request"><div><strong>{{ evaluation.admin_username }}</strong><small>　{{ evaluation.created_at }}</small></div><p>{{ evaluation.content }}</p></article>{% else %}<p class="empty">暂无评价记录。</p>{% endfor %}</section>
+{% endblock %}

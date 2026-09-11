@@ -13,6 +13,6 @@
 </section>
 <div class="table-scroll"><table>
   <thead><tr><th>姓名</th><th>学号</th><th>面试时间</th></tr></thead>
-  <tbody>{% for appointment in appointments %}<tr><td>{{ appointment.name }}</td><td>{{ appointment.student_id }}</td><td>{{ appointment.interview_date }} {{ appointment.start_time }}–{{ appointment.end_time }}</td></tr>{% else %}<tr><td colspan="3">尚无安排。</td></tr>{% endfor %}</tbody>
+  <tbody>{% for appointment in appointments %}<tr><td><a href="{{ url_for('admin_interviewee_detail', interviewee_id=appointment.interviewee_id) }}">{{ appointment.name }}</a></td><td>{{ appointment.student_id }}</td><td>{{ appointment.interview_date }} {{ appointment.start_time }}–{{ appointment.end_time }}</td></tr>{% else %}<tr><td colspan="3">尚无安排。</td></tr>{% endfor %}</tbody>
 </table></div>
 {% endblock %}

@@ -38,6 +38,7 @@
         <a href="{{ url_for('admin_slots') }}">时间段</a>
         <a href="{{ url_for('admin_appointments') }}">排期</a>
         <a href="{{ url_for('admin_change_requests') }}">调整申请</a>
+        {% if session.get('is_owner') %}<a href="{{ url_for('admin_accounts') }}">管理员账号</a>{% endif %}
       </nav>
     {% endif %}
     {% block content %}{% endblock %}
