@@ -150,3 +150,20 @@ def test_approval_keeps_current_appointment_when_target_slot_is_full(app, client
     connection.close()
     assert appointment_slot == 1
     assert status == "pending"
+
+
+def test_public_name_search_returns_only_scheduled_interview_details(app, client):
+    connection = sqlite3.connect(app.config["DATABASE"])
+    connection.execute("INSERT INTO interviewees (name, student_id, phone) VALUES ('李同学', '3', '13700137000')")
+    connection.execute("INSERT INTO interviewees (name, student_id, phone) VALUES ('李同学', '4', '13600136000')")
+    connection.execute("INSERT INTO slots (interview_date, start_time, end_time, capacity) VALUES ('2026-10-02', '13:00', '13:30', 2)")
+    connection.execute("INSERT INTO appointments (interviewee_id, slot_id) VALUES (1, 1)")
+    connection.commit()
+    connection.close()
+
+    response = client.get("/?name=李同学")
+    page = response.get_data(as_text=True)
+    assert "2026-10-02" in page
+    assert "13:00" in page
+    assert "13700137000" not in page
+    assert "13600136000" not in page

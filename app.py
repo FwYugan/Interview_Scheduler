@@ -160,7 +160,31 @@ def create_app(test_config=None):
 
     @app.get("/")
     def index():
-        return render_template("index.html", slots=query_slots())
+        slots = query_slots()
+        grouped_slots = {}
+        for slot in slots:
+            grouped_slots.setdefault(slot["interview_date"], []).append(slot)
+        search_query = request.args.get("name", "").strip()
+        search_result = None
+        if search_query:
+            search_result = get_db().execute(
+                """
+                SELECT i.name, i.student_id, s.interview_date, s.start_time, s.end_time
+                FROM interviewees i
+                JOIN appointments a ON a.interviewee_id = i.id
+                JOIN slots s ON s.id = a.slot_id
+                WHERE i.name LIKE ?
+                ORDER BY s.interview_date, s.start_time, i.student_id
+                """,
+                (f"%{search_query}%",),
+            ).fetchall()
+        return render_template(
+            "index.html",
+            slots=slots,
+            grouped_slots=grouped_slots,
+            search_query=search_query,
+            search_result=search_result,
+        )
 
     @app.route("/request/verify", methods=["GET", "POST"])
     def verify_identity():

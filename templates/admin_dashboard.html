@@ -1,17 +1,17 @@
 {% extends 'base.html' %}
 {% block title %}管理后台｜面试时间调整系统{% endblock %}
 {% block content %}
-<h1>管理后台</h1>
+<div class="admin-heading"><div><span class="eyebrow">CONTROL CENTER</span><h1>管理后台</h1><p>集中管理面试人员、时间段与调整申请。</p></div><span class="tag available">系统运行中</span></div>
 <div class="stats">
   <div class="stat"><span>{{ counts.interviewees }}</span>名面试人员</div>
   <div class="stat"><span>{{ counts.slots }}</span>个开放时间段</div>
   <div class="stat"><span>{{ counts.pending }}</span>条待审核申请</div>
 </div>
 <div class="admin-links">
-  <a class="card-link" href="{{ url_for('admin_interviewees') }}">人员管理与私有备注</a>
-  <a class="card-link" href="{{ url_for('import_csv') }}">CSV 批量导入</a>
-  <a class="card-link" href="{{ url_for('admin_slots') }}">时间段管理</a>
-  <a class="card-link" href="{{ url_for('admin_appointments') }}">初始面试排期</a>
-  <a class="card-link" href="{{ url_for('admin_change_requests') }}">审核调整申请</a>
+  <a class="card-link" href="{{ url_for('admin_interviewees') }}"><span class="eyebrow">PEOPLE</span><strong>人员资料</strong><small>录入人员并维护管理员私有备注</small></a>
+  <a class="card-link" href="{{ url_for('import_csv') }}"><span class="eyebrow">IMPORT</span><strong>CSV 批量导入</strong><small>按学号快速新增或更新人员</small></a>
+  <a class="card-link" href="{{ url_for('admin_slots') }}"><span class="eyebrow">SLOTS</span><strong>时间段管理</strong><small>创建轮次并设置可容纳人数</small></a>
+  <a class="card-link" href="{{ url_for('admin_appointments') }}"><span class="eyebrow">ASSIGN</span><strong>初始面试排期</strong><small>为人员分配面试时间</small></a>
+  <a class="card-link" href="{{ url_for('admin_change_requests') }}"><span class="eyebrow">REVIEW</span><strong>审核调整申请</strong><small>查看详情并处理时间变更</small></a>
 </div>
 {% endblock %}
