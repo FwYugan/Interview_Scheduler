@@ -1,10 +1,10 @@
 {% extends 'base.html' %}
-{% block title %}CSV 批量导入｜面试时间调整系统{% endblock %}
+{% block title %}人员导入｜面试时间调整系统{% endblock %}
 {% block content %}
 <p><a href="{{ url_for('admin_dashboard') }}">← 管理后台</a></p>
 <section class="card narrow">
-  <h1>CSV 批量导入待面试人员</h1>
-  <p>支持 UTF-8、UTF-8 with BOM 和常见 Excel 中文编码。文件必须包含“姓名、学号、电话号码”三列，也可使用 <code>name,student_id,phone</code>。</p>
+  <h1>人员导入</h1>
+  <p>CSV 默认列顺序：姓名、性别、学号、电话号、QQ号、专业、第一志愿、第二志愿。支持 UTF-8、UTF-8 BOM 和 GB18030 编码。</p>
   <p>学号相同的人员会更新姓名和电话；管理员备注、已有排期和历史调整申请会保留。</p>
   <p><a href="{{ url_for('static', filename='sample_interviewees.csv') }}">下载示例 CSV</a></p>
   <form method="post" enctype="multipart/form-data" class="form-grid">
@@ -13,4 +13,5 @@
     <button class="button" type="submit">开始导入</button>
   </form>
 </section>
+<section class="card narrow"><h2>单人手动添加</h2><form method="post" class="form-grid"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>姓名<input name="name" required></label><label>性别<input name="gender"></label><label>学号<input name="student_id" required></label><label>电话号<input name="phone" required></label><label>QQ号<input name="qq"></label><label>专业<input name="major" placeholder="可留空自动识别"></label><label>第一志愿<select name="first_choice">{% for d in departments %}<option value="{{ d }}">{{ d or '暂不选择' }}</option>{% endfor %}</select></label><label>第二志愿<select name="second_choice">{% for d in departments %}<option value="{{ d }}">{{ d or '暂不选择' }}</option>{% endfor %}</select></label><button class="button" type="submit">添加人员</button></form></section>
 {% endblock %}

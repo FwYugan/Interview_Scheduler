@@ -3,7 +3,7 @@ import io
 import os
 import secrets
 import sqlite3
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from functools import wraps
 
 import click
@@ -28,6 +28,11 @@ CREATE TABLE IF NOT EXISTS interviewees (
     name TEXT NOT NULL,
     student_id TEXT NOT NULL UNIQUE,
     phone TEXT NOT NULL,
+    qq TEXT NOT NULL DEFAULT '',
+    gender TEXT NOT NULL DEFAULT '',
+    major TEXT NOT NULL DEFAULT '待补全',
+    first_choice TEXT NOT NULL DEFAULT '',
+    second_choice TEXT NOT NULL DEFAULT '',
     admin_notes TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -96,6 +101,14 @@ def create_app(test_config=None):
         admin_columns = {row[1] for row in db.execute("PRAGMA table_info(admins)").fetchall()}
         if "is_owner" not in admin_columns:
             db.execute("ALTER TABLE admins ADD COLUMN is_owner INTEGER NOT NULL DEFAULT 0")
+        person_columns = {row[1] for row in db.execute("PRAGMA table_info(interviewees)").fetchall()}
+        if "first_choice" not in person_columns:
+            db.execute("ALTER TABLE interviewees ADD COLUMN first_choice TEXT NOT NULL DEFAULT ''")
+        if "second_choice" not in person_columns:
+            db.execute("ALTER TABLE interviewees ADD COLUMN second_choice TEXT NOT NULL DEFAULT ''")
+        for column, definition in (("qq", "TEXT NOT NULL DEFAULT ''"), ("gender", "TEXT NOT NULL DEFAULT ''"), ("major", "TEXT NOT NULL DEFAULT '待补全'")):
+            if column not in person_columns:
+                db.execute(f"ALTER TABLE interviewees ADD COLUMN {column} {definition}")
         if db.execute("SELECT COUNT(*) FROM admins").fetchone()[0] and not db.execute("SELECT 1 FROM admins WHERE is_owner = 1 LIMIT 1").fetchone():
             db.execute("UPDATE admins SET is_owner = 1 WHERE id = (SELECT MIN(id) FROM admins)")
         owner_ids = [row[0] for row in db.execute("SELECT id FROM admins WHERE is_owner = 1 ORDER BY id").fetchall()]
@@ -143,8 +156,35 @@ def create_app(test_config=None):
     def normalize_phone(value):
         return "".join(character for character in value.strip() if character.isdigit())
 
+    departments = ("", "竞赛部", "科创部", "宣传部", "办公室")
+
+    def update_choices(db, person_id, first, second):
+        first, second = (first or "").strip(), (second or "").strip()
+        if first not in departments or second not in departments or (first and first == second):
+            raise ValueError("第一志愿和第二志愿必须是不同部门，或使用空占位符。")
+        db.execute("UPDATE interviewees SET first_choice = ?, second_choice = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (first, second, person_id))
+
+    def infer_major(value):
+        value = (value or "").strip()
+        if "卓" in value:
+            return "卓越班"
+        if any(word in value for word in ("未来", "精工", "味精", "未精")):
+            return "未来精工技术"
+        if any(word in value for word in ("特立", "徐")):
+            return "徐特立英才"
+        return "待补全"
+
     def format_slot(slot):
         return f"{slot['interview_date']} {slot['start_time']}-{slot['end_time']}"
+
+    def format_datetime(value):
+        """SQLite CURRENT_TIMESTAMP is UTC; display China Standard Time."""
+        if not value:
+            return ""
+        try:
+            return (datetime.fromisoformat(str(value).replace("Z", "").strip()) + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
+        except (TypeError, ValueError):
+            return str(value)
 
     def query_slots(include_inactive=False):
         clause = "" if include_inactive else "WHERE s.active = 1"
@@ -193,7 +233,7 @@ def create_app(test_config=None):
 
     @app.context_processor
     def inject_helpers():
-        return {"csrf_token": csrf_token, "format_slot": format_slot}
+        return {"csrf_token": csrf_token, "format_slot": format_slot, "format_datetime": format_datetime, "departments": departments}
 
     @app.get("/")
     def index():
@@ -416,14 +456,22 @@ def create_app(test_config=None):
                 flash("请填写姓名、学号和有效电话号码。", "error")
             else:
                 try:
-                    db.execute("INSERT INTO interviewees (name, student_id, phone) VALUES (?, ?, ?)", (name, student_id, phone))
+                    first, second = request.form.get("first_choice", ""), request.form.get("second_choice", "")
+                    if first not in departments or second not in departments or (first and first == second):
+                        raise ValueError("第一志愿和第二志愿必须是不同部门，或使用空占位符。")
+                    db.execute("INSERT INTO interviewees (name, student_id, phone, qq, gender, major, first_choice, second_choice) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (name, student_id, phone, request.form.get("qq", "").strip(), request.form.get("gender", "").strip(), infer_major(request.form.get("major", "")), first, second))
                     db.commit()
                     flash("面试人员已添加。", "success")
                     return redirect(url_for("admin_interviewees"))
                 except sqlite3.IntegrityError:
                     flash("该学号已存在，请使用 CSV 导入更新，或检查输入。", "error")
-        people = db.execute("SELECT * FROM interviewees ORDER BY student_id").fetchall()
-        return render_template("admin_interviewees.html", people=people)
+        search = request.args.get("search", "").strip()
+        people = db.execute("""SELECT i.*, s.interview_date, s.start_time, s.end_time
+            FROM interviewees i LEFT JOIN appointments ap ON ap.interviewee_id=i.id
+            LEFT JOIN slots s ON s.id=ap.slot_id
+            WHERE (? = '' OR i.name LIKE ? OR i.student_id LIKE ?)
+            ORDER BY i.student_id""", (search, f"%{search}%", f"%{search}%")).fetchall()
+        return render_template("admin_interviewees.html", people=people, search=search)
 
     @app.get("/admin/interviewees/<int:interviewee_id>")
     @login_required
@@ -464,6 +512,83 @@ def create_app(test_config=None):
             flash("评价已添加。", "success")
         return redirect(url_for("admin_interviewee_detail", interviewee_id=interviewee_id))
 
+    @app.post("/admin/evaluations/<int:evaluation_id>/delete")
+    @login_required
+    def delete_evaluation(evaluation_id):
+        require_csrf()
+        db = get_db()
+        row = db.execute("SELECT interviewee_id FROM evaluations WHERE id = ? AND admin_id = ?", (evaluation_id, session["admin_id"])).fetchone()
+        if row:
+            db.execute("DELETE FROM evaluations WHERE id = ?", (evaluation_id,)); db.commit()
+            flash("评价已删除。", "success")
+            return redirect(url_for("admin_interviewee_detail", interviewee_id=row["interviewee_id"]))
+        abort(404)
+
+    @app.post("/admin/interviewees/<int:interviewee_id>/choices")
+    @login_required
+    def update_person_choices(interviewee_id):
+        require_csrf()
+        try:
+            update_choices(get_db(), interviewee_id, request.form.get("first_choice"), request.form.get("second_choice"))
+            get_db().commit(); flash("志愿已更新。", "success")
+        except ValueError as error:
+            flash(str(error), "error")
+        return redirect(request.referrer or url_for("admin_interviewees"))
+
+    @app.post("/admin/interviewees/<int:interviewee_id>/profile")
+    @login_required
+    def update_person_profile(interviewee_id):
+        require_csrf()
+        db = get_db()
+        name = request.form.get("name", "").strip()
+        student_id = request.form.get("student_id", "").strip()
+        phone = normalize_phone(request.form.get("phone", ""))
+        qq = request.form.get("qq", "").strip()
+        gender = request.form.get("gender", "").strip()
+        existing = db.execute("SELECT major FROM interviewees WHERE id = ?", (interviewee_id,)).fetchone()
+        major = infer_major(request.form.get("major")) if request.form.get("major") else (existing["major"] if existing else "待补全")
+        if not name or not student_id or not 7 <= len(phone) <= 20:
+            flash("姓名、学号、电话或专业信息无效。", "error")
+        else:
+            try:
+                db.execute("UPDATE interviewees SET name=?, student_id=?, phone=?, qq=?, gender=?, major=?, updated_at=CURRENT_TIMESTAMP WHERE id=?", (name, student_id, phone, qq, gender, major, interviewee_id))
+                db.commit(); flash("人员信息已更新。", "success")
+            except sqlite3.IntegrityError:
+                flash("学号已存在，请检查后重试。", "error")
+        return redirect(url_for("admin_interviewees", search=student_id))
+
+    @app.post("/admin/interviewees/<int:interviewee_id>/major")
+    @login_required
+    def update_person_major(interviewee_id):
+        require_csrf()
+        major = request.form.get("major", "")
+        if major not in {"卓越班", "未来精工技术", "徐特立英才", "待补全"}:
+            flash("专业选项无效。", "error")
+        else:
+            db = get_db(); db.execute("UPDATE interviewees SET major=?, updated_at=CURRENT_TIMESTAMP WHERE id=?", (major, interviewee_id)); db.commit(); flash("专业已更新。", "success")
+        return redirect(url_for("admin_interviewees"))
+
+    @app.post("/admin/interviewees/<int:interviewee_id>/delete")
+    @login_required
+    def delete_interviewee(interviewee_id):
+        require_csrf(); db = get_db()
+        try:
+            db.execute("DELETE FROM interviewees WHERE id = ?", (interviewee_id,)); db.commit()
+            flash("面试人员已删除。", "success")
+        except sqlite3.IntegrityError:
+            db.rollback(); flash("该人员存在历史记录，暂时不能删除。", "error")
+        return redirect(url_for("admin_interviewees"))
+
+    @app.post("/admin/interviewees/delete-all")
+    @owner_required
+    def delete_all_interviewees():
+        require_csrf(); db = get_db()
+        try:
+            db.execute("DELETE FROM interviewees"); db.commit(); flash("所有面试人员已删除。", "success")
+        except sqlite3.IntegrityError:
+            db.rollback(); flash("存在关联记录，无法删除全部人员。", "error")
+        return redirect(url_for("admin_interviewees"))
+
     @app.post("/admin/interviewees/<int:interviewee_id>/notes")
     @login_required
     def update_notes(interviewee_id):
@@ -483,6 +608,22 @@ def create_app(test_config=None):
         if request.method == "POST":
             require_csrf()
             uploaded = request.files.get("csv_file")
+            if not uploaded or not uploaded.filename:
+                name = request.form.get("name", "").strip()
+                student_id = request.form.get("student_id", "").strip()
+                phone = normalize_phone(request.form.get("phone", ""))
+                first = request.form.get("first_choice", "").strip()
+                second = request.form.get("second_choice", "").strip()
+                if not name or not student_id or not 7 <= len(phone) <= 20 or first not in departments or second not in departments or (first and first == second):
+                    flash("请填写有效的姓名、学号、电话和不同志愿。", "error")
+                else:
+                    db = get_db()
+                    try:
+                        db.execute("INSERT INTO interviewees (name, student_id, phone, qq, gender, major, first_choice, second_choice) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (name, student_id, phone, request.form.get("qq", "").strip(), request.form.get("gender", "").strip(), infer_major(request.form.get("major", "")), first, second))
+                        db.commit(); flash("面试人员已添加。", "success")
+                    except sqlite3.IntegrityError:
+                        db.rollback(); flash("该学号已存在。", "error")
+                return redirect(url_for("import_csv"))
             if not uploaded or not uploaded.filename:
                 flash("请选择 CSV 文件。", "error")
                 return redirect(url_for("import_csv"))
@@ -505,15 +646,26 @@ def create_app(test_config=None):
                 "name": {"name", "姓名"},
                 "student_id": {"student_id", "学号"},
                 "phone": {"phone", "电话号码", "电话", "手机号"},
+                "qq": {"qq", "qq号", "qq号码"},
+                "gender": {"gender", "性别"},
+                "major": {"major", "专业"},
+                "first_choice": {"first_choice", "第一志愿", "第一志愿部门"},
+                "second_choice": {"second_choice", "第二志愿", "第二志愿部门"},
             }
             headers = {header.strip().lstrip("\ufeff").lower(): header for header in (reader.fieldnames or []) if header}
+            positional = list(reader.fieldnames or [])
             column = {}
             for key, names in aliases.items():
                 source = next((headers[name] for name in names if name in headers), None)
+                if not source and key in {"first_choice", "second_choice", "qq", "gender", "major"}:
+                    continue
                 if not source:
                     flash("CSV 必须包含姓名、学号、电话号码三列（或 name、student_id、phone）。", "error")
                     return redirect(url_for("import_csv"))
                 column[key] = source
+            # 无表头或表头无法识别时，按约定的八列顺序读取
+            if len(positional) >= 8 and not any(k in headers for k in ("name", "姓名", "student_id", "学号")):
+                column = dict(zip(("name", "gender", "student_id", "phone", "qq", "major", "first_choice", "second_choice"), positional[:8]))
             db = get_db()
             created = updated = 0
             errors = []
@@ -524,15 +676,23 @@ def create_app(test_config=None):
                 if not name or not student_id or not 7 <= len(phone) <= 20:
                     errors.append(f"第 {row_number} 行：姓名、学号或电话号码无效")
                     continue
+                first = (row.get(column.get("first_choice")) or "").strip() if column.get("first_choice") else ""
+                second = (row.get(column.get("second_choice")) or "").strip() if column.get("second_choice") else ""
+                qq = (row.get(column.get("qq")) or "").strip() if column.get("qq") else ""
+                gender = (row.get(column.get("gender")) or "").strip() if column.get("gender") else ""
+                major = infer_major(row.get(column.get("major")) or "") if column.get("major") else "待补全"
+                if first not in departments or second not in departments or (first and first == second):
+                    errors.append(f"第 {row_number} 行：第一志愿和第二志愿无效或重复")
+                    continue
                 exists = db.execute("SELECT id FROM interviewees WHERE student_id = ?", (student_id,)).fetchone()
                 if exists:
                     db.execute(
-                        "UPDATE interviewees SET name = ?, phone = ?, updated_at = CURRENT_TIMESTAMP WHERE student_id = ?",
-                        (name, phone, student_id),
+                        "UPDATE interviewees SET name = ?, phone = ?, qq = ?, gender = ?, major = ?, first_choice = ?, second_choice = ?, updated_at = CURRENT_TIMESTAMP WHERE student_id = ?",
+                        (name, phone, qq, gender, major, first, second, student_id),
                     )
                     updated += 1
                 else:
-                    db.execute("INSERT INTO interviewees (name, student_id, phone) VALUES (?, ?, ?)", (name, student_id, phone))
+                    db.execute("INSERT INTO interviewees (name, student_id, phone, qq, gender, major, first_choice, second_choice) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (name, student_id, phone, qq, gender, major, first, second))
                     created += 1
             db.commit()
             message = f"导入完成：新增 {created} 人，更新 {updated} 人。"
@@ -572,7 +732,7 @@ def create_app(test_config=None):
         slot_people = {}
         for slot in slots:
             slot_people[slot["id"]] = get_db().execute(
-                "SELECT i.id, i.name, i.student_id FROM appointments a JOIN interviewees i ON i.id = a.interviewee_id WHERE a.slot_id = ? ORDER BY i.student_id",
+                "SELECT i.id, i.name, i.student_id, i.gender, i.major, i.first_choice, i.second_choice FROM appointments a JOIN interviewees i ON i.id = a.interviewee_id WHERE a.slot_id = ? ORDER BY i.student_id",
                 (slot["id"],),
             ).fetchall()
         return render_template("admin_slots.html", slots=slots, slot_people=slot_people)
@@ -584,6 +744,29 @@ def create_app(test_config=None):
         get_db().execute("UPDATE slots SET active = 1 - active WHERE id = ?", (slot_id,))
         get_db().commit()
         flash("时间段状态已更新。", "success")
+        return redirect(url_for("admin_slots"))
+
+    @app.post("/admin/slots/<int:slot_id>/delete")
+    @login_required
+    def delete_slot(slot_id):
+        require_csrf(); db = get_db()
+        if db.execute("SELECT 1 FROM appointments WHERE slot_id = ?", (slot_id,)).fetchone():
+            flash("已有面试安排的时间段不能删除，请先调整人员安排。", "error")
+        else:
+            db.execute("DELETE FROM slots WHERE id = ?", (slot_id,)); db.commit(); flash("时间段已删除。", "success")
+        return redirect(url_for("admin_slots"))
+
+    @app.post("/admin/slots/delete-all")
+    @owner_required
+    def delete_all_slots():
+        require_csrf(); db = get_db()
+        if db.execute("SELECT 1 FROM appointments LIMIT 1").fetchone():
+            flash("存在面试安排，请先清空排期后再删除全部时间段。", "error")
+        else:
+            try:
+                db.execute("DELETE FROM slots"); db.commit(); flash("所有时间段已删除。", "success")
+            except sqlite3.IntegrityError:
+                db.rollback(); flash("存在历史调整记录，无法删除全部时间段。", "error")
         return redirect(url_for("admin_slots"))
 
     @app.route("/admin/appointments", methods=["GET", "POST"])
@@ -615,7 +798,7 @@ def create_app(test_config=None):
         slots = [slot for slot in query_slots() if slot["booked"] < slot["capacity"]]
         appointments = db.execute(
             """
-            SELECT a.id, i.id AS interviewee_id, i.name, i.student_id, s.interview_date, s.start_time, s.end_time
+            SELECT a.id, i.id AS interviewee_id, i.name, i.gender, i.student_id, i.phone, i.qq, i.major, i.first_choice, i.second_choice, s.interview_date, s.start_time, s.end_time
             FROM appointments a JOIN interviewees i ON i.id = a.interviewee_id JOIN slots s ON s.id = a.slot_id
             ORDER BY s.interview_date, s.start_time, i.student_id
             """

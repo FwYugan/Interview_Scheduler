@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}审核调整申请｜面试时间调整系统{% endblock %}
 {% block content %}
 <p><a href="{{ url_for('admin_dashboard') }}">← 管理后台</a></p>
@@ -6,8 +6,9 @@
 {% for change in requests %}
 <article class="card request">
   <div><strong>{{ change.submitted_name }}</strong>（{{ change.submitted_student_id }}，电话后四位 {{ change.submitted_phone_last4 }}）</div>
-  <p>原时间：{{ change.old_date }} {{ change.old_start }}–{{ change.old_end }}<br>申请时间：{{ change.target_date }} {{ change.target_start }}–{{ change.target_end }}<br>提交于：{{ change.submitted_at }}</p>
+  <p>原时间：{{ change.old_date }} {{ change.old_start }}–{{ change.old_end }}<br>申请时间：{{ change.target_date }} {{ change.target_start }}–{{ change.target_end }}<br>提交于：{{ format_datetime(change.submitted_at) }}</p>
   <p><span class="tag {{ change.status }}">{{ '系统自动通过' if change.status == 'approved' else ('已拒绝' if change.status == 'rejected' else '待处理') }}</span> {{ change.admin_message }}</p>
 </article>
 {% else %}<p class="empty">尚无调整申请。</p>{% endfor %}
 {% endblock %}
+

@@ -1,24 +1,18 @@
 {% extends 'base.html' %}
 {% block content %}
-<section class="hero hero-home">
-  <div class="hero-copy"><span class="eyebrow">INTERVIEW SCHEDULE</span><h1>从容准备你的面试</h1><p>查看公开安排，快速找到自己的面试轮次。如需调整时间，提交申请后由管理员审核。</p><a class="button" href="{{ url_for('verify_identity') }}">申请调整时间 <span>→</span></a></div>
+<div class="top-panels"><section class="hero hero-home">
+  <div class="hero-copy"><span class="eyebrow">INTERVIEW SCHEDULE</span><h1>从容准备你的面试</h1><p>查看公开安排，快速找到自己的面试轮次。如需调整时间，提交后自动调整至有空位的时间段。</p><a class="button" href="{{ url_for('verify_identity') }}">申请调整时间 <span>→</span></a></div>
   <div class="hero-art" aria-hidden="true"><div class="art-card"><span class="art-dot"></span><span></span><span></span><span></span></div><div class="art-circle"></div></div>
 </section>
 
 <section class="lookup card">
   <div><span class="eyebrow">QUICK LOOKUP</span><h2>搜索你的面试信息</h2><p>输入姓名即可查看已安排的日期与时间。</p></div>
   <form class="search-form" method="get" action="{{ url_for('index') }}"><label class="sr-only" for="name-search">姓名</label><input id="name-search" name="name" value="{{ search_query }}" placeholder="请输入姓名，例如：张三" maxlength="50" required><button class="button" type="submit">搜索</button></form>
-</section>
+</section></div>
 {% if search_query %}
 <section class="search-result card"><h2>“{{ search_query }}”的搜索结果</h2>{% if search_result %}<div class="result-list">{% for person in search_result %}<div class="result-item"><span class="result-icon">✓</span><div><strong>{{ person.name }}</strong><small>面试日期：{{ person.interview_date }}　时间：{{ person.start_time }}–{{ person.end_time }}</small></div></div>{% endfor %}</div>{% else %}<p class="empty">未找到已安排的同名人员，请检查姓名或联系管理员。</p>{% endif %}</section>
 {% endif %}
 
-<section class="schedule-section"><div class="section-heading"><div><span class="eyebrow">SCHEDULE</span><h2>面试轮次安排</h2></div>{% if grouped_slots %}<label class="day-picker"><span>选择日期</span><select id="day-select" aria-label="选择面试日期">{% for day in grouped_slots %}<option value="day-{{ loop.index0 }}">{{ day }}</option>{% endfor %}</select></label>{% endif %}</div>
+<section class="schedule-section"><div class="section-heading"><div><span class="eyebrow">SCHEDULE</span><h2>面试轮次安排</h2></div></div>
 {% if grouped_slots %}{% for day, day_slots in grouped_slots.items() %}<div class="day-panel" data-day-panel="day-{{ loop.index0 }}"><div class="day-title"><span class="day-number">{{ '%02d'|format(loop.index) }}</span><div><strong>{{ day }}</strong><small>共 {{ day_slots|length }} 个面试轮次</small></div></div><div class="slot-grid">{% for slot in day_slots %}<article class="slot-card"><div class="slot-time">{{ slot.start_time }}<span>– {{ slot.end_time }}</span></div><div class="slot-meta"><span>{{ slot.booked }} / {{ slot.capacity }} 人</span>{% if slot.booked < slot.capacity %}<span class="tag available">有空位</span>{% else %}<span class="tag full">已满</span>{% endif %}</div><div class="slot-people">{{ slot.interviewee_names or '暂无安排' }}</div></article>{% endfor %}</div></div>{% endfor %}{% else %}<p class="empty">尚未发布面试时间段。</p>{% endif %}</section>
-<script>
-  const picker = document.getElementById('day-select');
-  const panels = document.querySelectorAll('[data-day-panel]');
-  function showDay(value) { panels.forEach(panel => { panel.hidden = panel.dataset.dayPanel !== value; }); }
-  if (picker) { showDay(picker.value); picker.addEventListener('change', () => showDay(picker.value)); }
-</script>
 {% endblock %}
