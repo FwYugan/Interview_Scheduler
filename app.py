@@ -1,4 +1,4 @@
-import csv
+﻿import csv
 import io
 import os
 import secrets
@@ -17,6 +17,7 @@ PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS admins (
     id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL DEFAULT '',
     username TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     is_owner INTEGER NOT NULL DEFAULT 0 CHECK (is_owner IN (0, 1)),
@@ -101,6 +102,8 @@ def create_app(test_config=None):
         admin_columns = {row[1] for row in db.execute("PRAGMA table_info(admins)").fetchall()}
         if "is_owner" not in admin_columns:
             db.execute("ALTER TABLE admins ADD COLUMN is_owner INTEGER NOT NULL DEFAULT 0")
+        if "name" not in admin_columns:
+            db.execute("ALTER TABLE admins ADD COLUMN name TEXT NOT NULL DEFAULT ''")
         person_columns = {row[1] for row in db.execute("PRAGMA table_info(interviewees)").fetchall()}
         if "first_choice" not in person_columns:
             db.execute("ALTER TABLE interviewees ADD COLUMN first_choice TEXT NOT NULL DEFAULT ''")
@@ -147,8 +150,8 @@ def create_app(test_config=None):
             click.echo("数据库已创建；该管理员用户名已存在，未修改密码。")
             return
         db.execute(
-            "INSERT INTO admins (username, password_hash, is_owner) VALUES (?, ?, ?)",
-            (admin_username.strip(), generate_password_hash(admin_password), 1 if db.execute("SELECT COUNT(*) FROM admins").fetchone()[0] == 0 else 0),
+            "INSERT INTO admins (name, username, password_hash, is_owner) VALUES (?, ?, ?, ?)",
+            (admin_username.strip(), admin_username.strip(), generate_password_hash(admin_password), 1 if db.execute("SELECT COUNT(*) FROM admins").fetchone()[0] == 0 else 0),
         )
         db.commit()
         click.echo("数据库和管理员账号已创建。")
@@ -160,8 +163,8 @@ def create_app(test_config=None):
 
     def update_choices(db, person_id, first, second):
         first, second = (first or "").strip(), (second or "").strip()
-        if first not in departments or second not in departments or (first and first == second):
-            raise ValueError("第一志愿和第二志愿必须是不同部门，或使用空占位符。")
+        if first not in departments or second not in departments:
+            raise ValueError("志愿必须选择合法部门或暂不选择。")
         db.execute("UPDATE interviewees SET first_choice = ?, second_choice = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (first, second, person_id))
 
     def infer_major(value):
@@ -169,7 +172,7 @@ def create_app(test_config=None):
         if "卓" in value:
             return "卓越班"
         if any(word in value for word in ("未来", "精工", "味精", "未精")):
-            return "未来精工技术"
+            return "未来精工"
         if any(word in value for word in ("特立", "徐")):
             return "徐特立英才"
         return "待补全"
@@ -280,11 +283,8 @@ def create_app(test_config=None):
                 appointment = get_db().execute(
                     "SELECT slot_id FROM appointments WHERE interviewee_id = ?", (person["id"],)
                 ).fetchone()
-                if not appointment:
-                    flash("暂未找到你的面试安排，请联系管理员。", "error")
-                else:
-                    session["verified_interviewee_id"] = person["id"]
-                    return redirect(url_for("create_change_request"))
+                session["verified_interviewee_id"] = person["id"]
+                return redirect(url_for("create_change_request"))
         return render_template("verify_identity.html")
 
     @app.route("/request/change", methods=["GET", "POST"])
@@ -299,11 +299,11 @@ def create_app(test_config=None):
             "SELECT a.slot_id, s.* FROM appointments a JOIN slots s ON s.id = a.slot_id WHERE a.interviewee_id = ?",
             (interviewee_id,),
         ).fetchone()
-        if not person or not appointment:
+        if not person:
             session.pop("verified_interviewee_id", None)
             flash("暂未找到有效的面试安排，请重新核验。", "error")
             return redirect(url_for("verify_identity"))
-        choices = [slot for slot in query_slots() if slot["id"] != appointment["slot_id"] and slot["booked"] < slot["capacity"]]
+        choices = [slot for slot in query_slots() if (not appointment or slot["id"] != appointment["slot_id"]) and slot["booked"] < slot["capacity"]]
         if request.method == "POST":
             require_csrf()
             target_id = request.form.get("requested_slot_id", type=int)
@@ -315,7 +315,7 @@ def create_app(test_config=None):
                     "SELECT submitted_at FROM change_requests WHERE interviewee_id = ? ORDER BY submitted_at DESC LIMIT 1",
                     (interviewee_id,),
                 ).fetchone()
-                if not target or target_id == appointment["slot_id"] or not current or current["slot_id"] != appointment["slot_id"]:
+                if not target or (appointment and target_id == appointment["slot_id"]) or (appointment and (not current or current["slot_id"] != appointment["slot_id"])):
                     raise ValueError("请选择有效的新时间段，当前安排可能已经改变。")
                 if recent:
                     elapsed = db.execute("SELECT (julianday('now') - julianday(?)) * 86400", (recent["submitted_at"],)).fetchone()[0]
@@ -324,14 +324,13 @@ def create_app(test_config=None):
                 booked = db.execute("SELECT COUNT(*) FROM appointments WHERE slot_id = ?", (target_id,)).fetchone()[0]
                 if booked >= target["capacity"]:
                     raise ValueError("目标时间段刚刚已满，请选择其他时间段。")
-                db.execute(
-                    """
-                    UPDATE appointments SET slot_id = ? WHERE interviewee_id = ? AND slot_id = ?
-                    """,
-                    (target_id, interviewee_id, appointment["slot_id"]),
-                )
-                if db.execute("SELECT changes()").fetchone()[0] != 1:
-                    raise ValueError("当前安排已经改变，请刷新后重试。")
+                old_slot_id = appointment["slot_id"] if appointment else target_id
+                if appointment:
+                    db.execute("UPDATE appointments SET slot_id = ? WHERE interviewee_id = ? AND slot_id = ?", (target_id, interviewee_id, appointment["slot_id"]))
+                    if db.execute("SELECT changes()").fetchone()[0] != 1:
+                        raise ValueError("当前安排已经改变，请刷新后重试。")
+                else:
+                    db.execute("INSERT INTO appointments (interviewee_id, slot_id) VALUES (?, ?)", (interviewee_id, target_id))
                 db.execute(
                     """
                     INSERT INTO change_requests
@@ -339,7 +338,7 @@ def create_app(test_config=None):
                      status, admin_message, processed_at)
                     VALUES (?, ?, ?, ?, ?, ?, 'approved', '系统自动处理：目标时间段有空位。', CURRENT_TIMESTAMP)
                     """,
-                    (interviewee_id, appointment["slot_id"], target_id, person["name"], person["student_id"], person["phone"][-4:]),
+                    (interviewee_id, old_slot_id, target_id, person["name"], person["student_id"], person["phone"][-4:]),
                 )
                 db.commit()
                 session.pop("verified_interviewee_id", None)
@@ -398,13 +397,18 @@ def create_app(test_config=None):
                 flash("管理员用户名不能为空，密码至少需要 8 位。", "error")
             else:
                 try:
-                    db.execute("INSERT INTO admins (username, password_hash, is_owner) VALUES (?, ?, 0)", (username, generate_password_hash(password)))
+                    admin_name = request.form.get("name", "").strip()
+                    if not admin_name:
+                        raise ValueError
+                    db.execute("INSERT INTO admins (name, username, password_hash, is_owner) VALUES (?, ?, ?, 0)", (admin_name, username, generate_password_hash(password)))
                     db.commit()
                     flash("管理员账号已添加。", "success")
                     return redirect(url_for("admin_accounts"))
+                except ValueError:
+                    flash("管理员姓名不能为空。", "error")
                 except sqlite3.IntegrityError:
                     flash("该用户名已存在。", "error")
-        admins = db.execute("SELECT id, username, is_owner, created_at FROM admins ORDER BY is_owner DESC, username").fetchall()
+        admins = db.execute("SELECT id, name, username, is_owner, created_at FROM admins ORDER BY is_owner DESC, username").fetchall()
         return render_template("admin_accounts.html", admins=admins)
 
     @app.post("/admin/admins/<int:admin_id>/password")
@@ -457,8 +461,8 @@ def create_app(test_config=None):
             else:
                 try:
                     first, second = request.form.get("first_choice", ""), request.form.get("second_choice", "")
-                    if first not in departments or second not in departments or (first and first == second):
-                        raise ValueError("第一志愿和第二志愿必须是不同部门，或使用空占位符。")
+                    if first not in departments or second not in departments:
+                        raise ValueError("志愿必须选择合法部门或暂不选择。")
                     db.execute("INSERT INTO interviewees (name, student_id, phone, qq, gender, major, first_choice, second_choice) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (name, student_id, phone, request.form.get("qq", "").strip(), request.form.get("gender", "").strip(), infer_major(request.form.get("major", "")), first, second))
                     db.commit()
                     flash("面试人员已添加。", "success")
@@ -488,7 +492,7 @@ def create_app(test_config=None):
         ).fetchone()
         evaluations = db.execute(
             """
-            SELECT e.*, a.username AS admin_username
+            SELECT e.*, a.username AS admin_username, a.name AS admin_name
             FROM evaluations e JOIN admins a ON a.id = e.admin_id
             WHERE e.interviewee_id = ? ORDER BY e.created_at DESC, e.id DESC
             """, (interviewee_id,)
@@ -562,7 +566,7 @@ def create_app(test_config=None):
     def update_person_major(interviewee_id):
         require_csrf()
         major = request.form.get("major", "")
-        if major not in {"卓越班", "未来精工技术", "徐特立英才", "待补全"}:
+        if major not in {"卓越班", "未来精工", "徐特立英才", "待补全"} and not major.startswith("其他:"):
             flash("专业选项无效。", "error")
         else:
             db = get_db(); db.execute("UPDATE interviewees SET major=?, updated_at=CURRENT_TIMESTAMP WHERE id=?", (major, interviewee_id)); db.commit(); flash("专业已更新。", "success")
@@ -614,8 +618,8 @@ def create_app(test_config=None):
                 phone = normalize_phone(request.form.get("phone", ""))
                 first = request.form.get("first_choice", "").strip()
                 second = request.form.get("second_choice", "").strip()
-                if not name or not student_id or not 7 <= len(phone) <= 20 or first not in departments or second not in departments or (first and first == second):
-                    flash("请填写有效的姓名、学号、电话和不同志愿。", "error")
+                if not name or not student_id or not 7 <= len(phone) <= 20 or first not in departments or second not in departments:
+                    flash("请填写有效的姓名、学号、电话和志愿。", "error")
                 else:
                     db = get_db()
                     try:
@@ -681,8 +685,8 @@ def create_app(test_config=None):
                 qq = (row.get(column.get("qq")) or "").strip() if column.get("qq") else ""
                 gender = (row.get(column.get("gender")) or "").strip() if column.get("gender") else ""
                 major = infer_major(row.get(column.get("major")) or "") if column.get("major") else "待补全"
-                if first not in departments or second not in departments or (first and first == second):
-                    errors.append(f"第 {row_number} 行：第一志愿和第二志愿无效或重复")
+                if first not in departments or second not in departments:
+                    errors.append(f"第 {row_number} 行：第一志愿或第二志愿无效")
                     continue
                 exists = db.execute("SELECT id FROM interviewees WHERE student_id = ?", (student_id,)).fetchone()
                 if exists:
@@ -750,23 +754,21 @@ def create_app(test_config=None):
     @login_required
     def delete_slot(slot_id):
         require_csrf(); db = get_db()
-        if db.execute("SELECT 1 FROM appointments WHERE slot_id = ?", (slot_id,)).fetchone():
-            flash("已有面试安排的时间段不能删除，请先调整人员安排。", "error")
-        else:
-            db.execute("DELETE FROM slots WHERE id = ?", (slot_id,)); db.commit(); flash("时间段已删除。", "success")
+        db.execute("DELETE FROM appointments WHERE slot_id = ?", (slot_id,))
+        db.execute("DELETE FROM change_requests WHERE old_slot_id = ? OR requested_slot_id = ?", (slot_id, slot_id))
+        db.execute("DELETE FROM slots WHERE id = ?", (slot_id,)); db.commit(); flash("时间段已删除，相关人员已改为未选择。", "success")
         return redirect(url_for("admin_slots"))
 
     @app.post("/admin/slots/delete-all")
     @owner_required
     def delete_all_slots():
         require_csrf(); db = get_db()
-        if db.execute("SELECT 1 FROM appointments LIMIT 1").fetchone():
-            flash("存在面试安排，请先清空排期后再删除全部时间段。", "error")
-        else:
-            try:
-                db.execute("DELETE FROM slots"); db.commit(); flash("所有时间段已删除。", "success")
-            except sqlite3.IntegrityError:
-                db.rollback(); flash("存在历史调整记录，无法删除全部时间段。", "error")
+        try:
+            db.execute("DELETE FROM appointments")
+            db.execute("DELETE FROM change_requests")
+            db.execute("DELETE FROM slots"); db.commit(); flash("所有时间段已删除，相关人员已改为未选择。", "success")
+        except sqlite3.IntegrityError:
+            db.rollback(); flash("存在历史调整记录，无法删除全部时间段。", "error")
         return redirect(url_for("admin_slots"))
 
     @app.route("/admin/appointments", methods=["GET", "POST"])
@@ -832,3 +834,4 @@ app = create_app()
 
 if __name__ == "__main__":
     app.run(debug=True)
+

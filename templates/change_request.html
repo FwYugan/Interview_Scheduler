@@ -4,7 +4,7 @@
 <section class="card narrow">
   <p><a href="{{ url_for('verify_identity') }}">← 返回身份核验</a></p>
   <h1>选择希望调整到的时间</h1>
-  <p><strong>{{ person.name }}</strong>，你当前安排为：{{ format_slot(appointment) }}。提交后系统会在有空位时立即调整。</p>
+  <p><strong>{{ person.name }}</strong>，{% if appointment %}你当前安排为：{{ format_slot(appointment) }}。{% else %}你目前尚未安排面试时间。{% endif %}提交后系统会在有空位时立即安排。</p>
   {% if choices %}
   <form method="post" class="form-grid">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

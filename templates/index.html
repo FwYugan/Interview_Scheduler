@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="top-panels"><section class="hero hero-home">
-  <div class="hero-copy"><span class="eyebrow">INTERVIEW SCHEDULE</span><h1>从容准备你的面试</h1><p>查看公开安排，快速找到自己的面试轮次。如需调整时间，提交后自动调整至有空位的时间段。</p><a class="button" href="{{ url_for('verify_identity') }}">申请调整时间 <span>→</span></a></div>
+  <div class="hero-copy"><span class="eyebrow">INTERVIEW SCHEDULE</span><h1>选择面试时间</h1><p>初次选择面试时间及调整面试时间，都请单击此处</p><a class="button" href="{{ url_for('verify_identity') }}">申请调整时间 <span>→</span></a></div>
   <div class="hero-art" aria-hidden="true"><div class="art-card"><span class="art-dot"></span><span></span><span></span><span></span></div><div class="art-circle"></div></div>
 </section>
 
@@ -14,5 +14,5 @@
 {% endif %}
 
 <section class="schedule-section"><div class="section-heading"><div><span class="eyebrow">SCHEDULE</span><h2>面试轮次安排</h2></div></div>
-{% if grouped_slots %}{% for day, day_slots in grouped_slots.items() %}<div class="day-panel" data-day-panel="day-{{ loop.index0 }}"><div class="day-title"><span class="day-number">{{ '%02d'|format(loop.index) }}</span><div><strong>{{ day }}</strong><small>共 {{ day_slots|length }} 个面试轮次</small></div></div><div class="slot-grid">{% for slot in day_slots %}<article class="slot-card"><div class="slot-time">{{ slot.start_time }}<span>– {{ slot.end_time }}</span></div><div class="slot-meta"><span>{{ slot.booked }} / {{ slot.capacity }} 人</span>{% if slot.booked < slot.capacity %}<span class="tag available">有空位</span>{% else %}<span class="tag full">已满</span>{% endif %}</div><div class="slot-people">{{ slot.interviewee_names or '暂无安排' }}</div></article>{% endfor %}</div></div>{% endfor %}{% else %}<p class="empty">尚未发布面试时间段。</p>{% endif %}</section>
+{% if grouped_slots %}{% for day, day_slots in grouped_slots.items() %}<div class="day-panel" data-day-panel="day-{{ loop.index0 }}"><div class="day-title"><span class="day-number">{{ '%02d'|format(loop.index) }}</span><div><strong>{{ day }}</strong><small>共 {{ day_slots|length }} 个面试轮次</small></div></div><div class="slot-grid">{% for slot in day_slots %}<article class="slot-card"><div class="slot-time">{{ slot.start_time }}<span>– {{ slot.end_time }}</span></div><div class="slot-meta"><span>{{ slot.booked }} / {{ slot.capacity }} 人</span>{% if slot.booked < slot.capacity %}<span class="tag available">有空位</span>{% else %}<span class="tag full">已满</span>{% endif %}</div><div class="slot-people">{{ slot.interviewee_names or '-' }}</div></article>{% endfor %}</div></div>{% endfor %}{% else %}<p class="empty">尚未发布面试时间段。</p>{% endif %}</section>
 {% endblock %}

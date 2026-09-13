@@ -11,7 +11,6 @@
   <a class="card-link" href="{{ url_for('admin_interviewees') }}"><span class="eyebrow">PEOPLE</span><strong>人员资料</strong><small>录入人员并维护管理员私有备注</small></a>
   <a class="card-link" href="{{ url_for('import_csv') }}"><span class="eyebrow">IMPORT</span><strong>CSV 批量导入</strong><small>按学号快速新增或更新人员</small></a>
   <a class="card-link" href="{{ url_for('admin_slots') }}"><span class="eyebrow">SLOTS</span><strong>时间段管理</strong><small>创建轮次并设置可容纳人数</small></a>
-  <a class="card-link" href="{{ url_for('admin_appointments') }}"><span class="eyebrow">ASSIGN</span><strong>初始面试排期</strong><small>为人员分配面试时间</small></a>
   <a class="card-link" href="{{ url_for('admin_change_requests') }}"><span class="eyebrow">REVIEW</span><strong>审核调整申请</strong><small>查看详情并处理时间变更</small></a>
   {% if session.get('is_owner') %}<a class="card-link" href="{{ url_for('admin_accounts') }}"><span class="eyebrow">OWNER</span><strong>管理员账号</strong><small>仅站长可以添加、改密或删除账号</small></a>{% endif %}
 </div>
